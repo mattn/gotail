@@ -9,7 +9,7 @@ $ gotail access.log error.log
 ```
 
 Arg No | Color
-------:|--------
+:-----:|:------:
 1      | White
 2      | Green
 3      | Cyan
