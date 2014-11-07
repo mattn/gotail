@@ -1,14 +1,19 @@
 package main
 
 import (
+	"bufio"
+	"code.google.com/p/mahonia"
+	"flag"
 	"fmt"
 	"github.com/daviddengcn/go-colortext"
 	"io"
 	"os"
 	"sync"
+	"time"
 )
 
 var colors = []ct.Color{
+	ct.White,
 	ct.Green,
 	ct.Cyan,
 	ct.Magenta,
@@ -19,54 +24,60 @@ var colors = []ct.Color{
 var ci int
 
 var mutex sync.Mutex
+var decoder mahonia.Decoder
+var enc = flag.String("e", "", "Decode encoding")
 
 func relay(color ct.Color, in io.Reader, out io.Writer) (err error) {
-	var n int
-	b := make([]byte, 4096)
+	buf := bufio.NewReader(in)
 	for {
-		n, err = in.Read(b)
-		if err != nil {
-			break
+		b, _, err := buf.ReadLine()
+		if len(b) > 0 {
+			if decoder != nil {
+				_, b, err = decoder.Translate(b, false)
+			}
+			mutex.Lock()
+			ct.ChangeColor(color, false, ct.None, false)
+			fmt.Fprintln(out, string(b))
+			ct.ResetColor()
+			mutex.Unlock()
 		}
-		mutex.Lock()
-		ct.ChangeColor(color, false, ct.None, false)
-		_, err = out.Write(b[:n])
-		ct.ResetColor()
-		mutex.Unlock()
 		if err != nil {
-			break
+			if err != io.EOF {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
-	return
+	return err
 }
 
-func tail(in io.Reader) {
-	var err error
+func tail(r io.Reader, w io.Writer) error {
 	color := colors[ci]
 	if ci++; ci >= len(colors) {
 		ci = 0
 	}
-	for {
-		err = relay(color, in, os.Stdout)
-		if err != nil {
-			if err != io.EOF {
-				fmt.Fprintln(os.Stderr, "gotail: " + err.Error())
-				break
-			}
-		}
-	}
+	return relay(color, r, w)
 }
 
 func main() {
-	if len(os.Args) == 1 {
-		tail(os.Stdin)
+	flag.Parse()
+
+	if *enc != "" {
+		decoder = mahonia.NewDecoder(*enc)
+	}
+
+	if flag.NArg() == 0 {
+		if err := tail(os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "gotail: "+err.Error())
+		}
 	} else {
-		for _, arg := range os.Args[1:] {
+		var wg sync.WaitGroup
+		for _, arg := range flag.Args() {
 			var in io.Reader
 			if arg != "-" {
 				fin, err := os.Open(arg)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "gotail: " + err.Error())
+					fmt.Fprintln(os.Stderr, "gotail: "+err.Error())
 					os.Exit(1)
 				}
 				defer fin.Close()
@@ -75,8 +86,14 @@ func main() {
 			} else {
 				in = os.Stdin
 			}
-			go tail(in)
+			wg.Add(1)
+			go func(in io.Reader) {
+				if err := tail(in, os.Stdout); err != nil {
+					fmt.Fprintln(os.Stderr, "gotail: "+err.Error())
+				}
+				wg.Done()
+			}(in)
 		}
-		select {}
+		wg.Wait()
 	}
 }
