@@ -27,7 +27,11 @@ var mutex sync.Mutex
 var decoder mahonia.Decoder
 var enc = flag.String("e", "", "Decode encoding")
 
-func relay(color ct.Color, in io.Reader, out io.Writer) (err error) {
+func tail(in io.Reader, out io.Writer, follow bool) (err error) {
+	color := colors[ci]
+	if ci++; ci >= len(colors) {
+		ci = 0
+	}
 	buf := bufio.NewReader(in)
 	for {
 		b, _, err := buf.ReadLine()
@@ -42,21 +46,13 @@ func relay(color ct.Color, in io.Reader, out io.Writer) (err error) {
 			mutex.Unlock()
 		}
 		if err != nil {
-			if err != io.EOF {
+			if err != io.EOF || !follow {
 				break
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
 	return err
-}
-
-func tail(r io.Reader, w io.Writer) error {
-	color := colors[ci]
-	if ci++; ci >= len(colors) {
-		ci = 0
-	}
-	return relay(color, r, w)
 }
 
 func main() {
@@ -67,7 +63,7 @@ func main() {
 	}
 
 	if flag.NArg() == 0 {
-		if err := tail(os.Stdin, os.Stdout); err != nil {
+		if err := tail(os.Stdin, os.Stdout, false); err != nil {
 			fmt.Fprintln(os.Stderr, "gotail: "+err.Error())
 		}
 	} else {
@@ -88,7 +84,7 @@ func main() {
 			}
 			wg.Add(1)
 			go func(in io.Reader) {
-				if err := tail(in, os.Stdout); err != nil {
+				if err := tail(in, os.Stdout, true); err != nil {
 					fmt.Fprintln(os.Stderr, "gotail: "+err.Error())
 				}
 				wg.Done()
