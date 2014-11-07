@@ -1,5 +1,7 @@
 # gotail
 
+![](http://go-gyazo.appspot.com/18e1270e0d40b768.png)
+
 ## Usage
 
 ```
