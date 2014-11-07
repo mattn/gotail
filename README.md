@@ -8,6 +8,18 @@
 $ gotail access.log error.log
 ```
 
+Arg No | Color
+-------|--------
+1      | White
+2      | Green
+3      | Cyan
+4      | Magenta
+5      | Yellow
+6      | Blue
+7      | Red
+8      | White
+...    | ...
+
 ## Requirements
 
 golang
