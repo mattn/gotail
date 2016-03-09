@@ -2,14 +2,16 @@ package main
 
 import (
 	"bufio"
-	"code.google.com/p/mahonia"
 	"flag"
 	"fmt"
-	"github.com/daviddengcn/go-colortext"
 	"io"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/daviddengcn/go-colortext"
+	goenc "github.com/mattn/go-encoding"
+	"golang.org/x/text/encoding"
 )
 
 var colors = []ct.Color{
@@ -24,7 +26,7 @@ var colors = []ct.Color{
 var ci int
 
 var mutex sync.Mutex
-var decoder mahonia.Decoder
+var decoder *encoding.Decoder
 var enc = flag.String("e", "", "Decode encoding")
 
 func tail(in io.Reader, out io.Writer, follow bool) (err error) {
@@ -37,7 +39,10 @@ func tail(in io.Reader, out io.Writer, follow bool) (err error) {
 		b, _, err := buf.ReadLine()
 		if len(b) > 0 {
 			if decoder != nil {
-				_, b, err = decoder.Translate(b, false)
+				var d []byte
+				if d, err = decoder.Bytes(b); err == nil {
+					b = d
+				}
 			}
 			mutex.Lock()
 			ct.ChangeColor(color, false, ct.None, false)
@@ -59,7 +64,7 @@ func main() {
 	flag.Parse()
 
 	if *enc != "" {
-		decoder = mahonia.NewDecoder(*enc)
+		decoder = goenc.GetEncoding(*enc).NewDecoder()
 	}
 
 	if flag.NArg() == 0 {
